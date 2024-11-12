@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -87,15 +91,39 @@ func generateCPULoad(percentage int, duration time.Duration, numCores int, wg *s
 }
 
 func main() {
+	// Create an HTTP server
+	server := &http.Server{Addr: ":8080"}
+
 	// Register the root handler for "/"
 	http.HandleFunc("/", rootHandler)
 
 	// Register the handler function for the `/percpu` endpoint
 	http.HandleFunc("/percpu/", loadHandler)
 
-	// Start the server
-	fmt.Println("Server is listening on http://localhost:8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		fmt.Println("Failed to start server:", err)
+	// Channel to listen for interrupt or terminate signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	// Run the server in a goroutine so it doesn’t block
+	go func() {
+		fmt.Println("Server is listening on http://localhost:8080")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Println("Failed to start server:", err)
+		}
+	}()
+
+	// Block until we receive a signal
+	<-sigChan
+	fmt.Println("\nShutdown signal received")
+
+	// Create a context with a timeout for the graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Attempt a graceful shutdown
+	if err := server.Shutdown(ctx); err != nil {
+		fmt.Println("Error shutting down server:", err)
+	} else {
+		fmt.Println("Server shut down gracefully")
 	}
 }
