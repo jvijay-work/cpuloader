@@ -1,0 +1,21 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  PROJECT: cpuloader
+
+tasks:
+  default:
+    cmds:
+      - go run .
+    silent: false
+  test:
+    cmds:
+      - glint
+      - go test -cover
+      - go test -v
+  build:
+    cmds:
+      - GOOS=linux CGO_ENABLED=0 go build -ldflags '-w -s -extldflags "-static"' -o "{{.PROJECT}}" .
+      - upx --best --lzma "{{.PROJECT}}"
