@@ -116,8 +116,18 @@ func main() {
 	<-sigChan
 	fmt.Println("\nShutdown signal received")
 
+	// Check for SHUTTIMEOUT environment variable and parse it as an integer
+	timeout := 10 * time.Second // Default to 10 seconds
+	if shutTimeoutStr := os.Getenv("SHUTTIMEOUT"); shutTimeoutStr != "" {
+		if shutTimeout, err := strconv.Atoi(shutTimeoutStr); err == nil && shutTimeout > 0 {
+			timeout = time.Duration(shutTimeout) * time.Second
+		} else {
+			fmt.Println("Invalid SHUTTIMEOUT value, using default 10 seconds")
+		}
+	}
+
 	// Create a context with a timeout for the graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	// Attempt a graceful shutdown
